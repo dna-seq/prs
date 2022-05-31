@@ -1,4 +1,4 @@
-import run_hail_prs as hl
+import hail as hl
 
 
 mt = hl.import_plink(

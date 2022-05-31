@@ -43,44 +43,50 @@ def change_header(header):
 def move_empty_rsid(prs_file_path, output_dir):
     sniffer = csv.Sniffer()
     edited_file_path = get_edited_file_path(output_dir, prs_file_path)
-    print("edited_file_path", edited_file_path)
     if os.path.isfile(edited_file_path):
-        raise IOError("Edited file path already exists, remove or rename it first")
+        raise IOError("Edited file path {} already exists, remove or rename it first".format(edited_file_path))
     i = 0
     with open(prs_file_path, 'r') as f:
         with open(edited_file_path, 'a') as output:
             for line in f:
                 if not line.startswith('#') and not i:
-                    i += 1
                     dialect = sniffer.sniff(line)
                     s = line.split(dialect.delimiter)
-                    new_header = change_header(line)
-                    output.write(new_header)
                     rsid_idx = get_rsid_idx(s)
-                    continue
+                    if rsid_idx is not None:
+                        new_header = change_header(line)
+                        output.write(new_header)
+                        print("new header recorded")
+                        i += 1
+                        continue
+                    else:
+                        print("no rsid column in {}, return".format(prs_file_path))
+                        return edited_file_path, i
                 if not line.startswith('#') and i > 0:
                     s = line.split(dialect.delimiter)
-                    if rsid_idx is not None:
-                        if not s[rsid_idx]:
-                            i += 1
-                            s[rsid_idx] = 'unknown_{}'.format(i)
-                            print('empty rsid has been changed to \'unknown_{}\' name'.format(i))
-                            edited_line = dialect.delimiter.join(s)
-                            output.write(edited_line)
-                        else:
-                            output.write(line)
+                    if not s[rsid_idx]:
+                        i += 1
+                        s[rsid_idx] = 'unknown_{}'.format(i)
+                        print('empty rsid has been changed to \'unknown_{}\' name'.format(i))
+                        edited_line = dialect.delimiter.join(s)
+                        output.write(edited_line)
+                    else:
+                        output.write(line)
     return edited_file_path, i
 
 
 def main(prs_dir, out_dir):
+    if not os.path.isdir(out_dir):
+        os.makedirs(out_dir)
     for prs_file_path in parse_dir(prs_dir):
-        edited_file_path, i = move_empty_rsid(prs_file_path, out_dir)
-        if not i:
+        print("start checking file {}".format(prs_file_path))
+        edited_file_path, counter = move_empty_rsid(prs_file_path, out_dir)
+        if counter < 1:
             os.rename(edited_file_path, edited_file_path.replace('_edited', ''))
             print("{} doesn't require to be changed, original file has been written to the output folder".
                   format(prs_file_path))
         else:
-            print("{} has been recorded".format(edited_file_path))
+            print("{} has been recorded, number of rsid replacements = {}".format(edited_file_path, counter - 1))
 
 
 if __name__ == '__main__':
