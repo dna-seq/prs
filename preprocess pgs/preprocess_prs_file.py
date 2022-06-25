@@ -41,6 +41,7 @@ def change_header(header):
 
 
 def move_empty_rsid(prs_file_path, output_dir):
+    rs_id_list = list()
     sniffer = csv.Sniffer()
     edited_file_path = get_edited_file_path(output_dir, prs_file_path)
     if os.path.isfile(edited_file_path):
@@ -67,11 +68,13 @@ def move_empty_rsid(prs_file_path, output_dir):
                     if not s[rsid_idx]:
                         i += 1
                         s[rsid_idx] = 'unknown_{}'.format(i)
-                        print('empty rsid has been changed to \'unknown_{}\' name'.format(i))
                         edited_line = dialect.delimiter.join(s)
                         output.write(edited_line)
                     else:
                         output.write(line)
+                    if s[rsid_idx] in rs_id_list:
+                        print("warning: {} is duplicate".format(s[rsid_idx]))
+                    rs_id_list.append(s[rsid_idx])
     return edited_file_path, i
 
 

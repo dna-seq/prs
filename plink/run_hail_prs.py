@@ -2,12 +2,12 @@ import hail as hl
 
 
 mt = hl.import_plink(
-    bed="data/public/prs/ex_antonk.bed", bim="data/public/prs/ex_antonk.bim", fam="data/public/prs/ex_antonk.fam",
+    bed="path/example.bed", bim="path/example.bim", fam="path/example.fam",
     quant_pheno=True, missing='-9')
 
 mt = hl.variant_qc(mt)
 
-scores = hl.import_table('data/public/prs/data/PGS000706_edited.txt', delimiter=' ', key='rsid',
+scores = hl.import_table('data/PGS001298.txt', delimiter=' ', key='rsid',
                          types={'score': hl.tfloat32})
 mt = mt.annotate_rows(**scores[mt.rsid])
 flip = hl.case().when(mt.allele == mt.alleles[0], True).when(mt.allele == mt.alleles[1], False).or_missing()
