@@ -41,22 +41,8 @@ def get_rsid_idx(splited_line):
         return None
 
 
-def change_header(header):
-    s1 = header.replace('chr_name', 'CHROM')
-    s2 = s1.replace('chr_position', 'POS')
-    s3 = s2.replace('effect_allele', 'EA')
-    s4 = s3.replace('other_allele', 'OA')
-    edited_header = s4.replace('effect_weight', 'WEIGHT_eff')
-    return edited_header
-
-
-def change_header_without_rsid(header):
-    s1 = header.replace('chr_name', 'CHROM')
-    s2 = s1.replace('chr_position', 'POS')
-    s3 = s2.replace('effect_allele', 'EA')
-    s4 = s3.replace('other_allele', 'OA')
-    s5 = s4.replace('effect_weight', 'WEIGHT_eff')
-    edited_header = 'rsID\t' + s5
+def insert_rsid_to_header(header):
+    edited_header = 'rsID\t' + header
     return edited_header
 
 
@@ -67,7 +53,7 @@ def move_empty_rsid(prs_file_path, output_dir, replace_flag):
     if os.path.isfile(edited_file_path):
         raise IOError("Edited file path {} already exists, remove or rename it first".format(edited_file_path))
     i = -1
-    without_rsid = False
+    inserted_rsid = False
     with open(prs_file_path, 'r') as f:
         with open(edited_file_path, 'a') as output:
             for line in f:
@@ -76,38 +62,46 @@ def move_empty_rsid(prs_file_path, output_dir, replace_flag):
                     s = line.split(dialect.delimiter)
                     rsid_idx = get_rsid_idx(s)
                     if rsid_idx is not None:
-                        new_header = change_header(line)
-                        output.write(new_header)
-                        print("new header recorded")
+                        header = line
+                        output.write(header)
+                        print("header recorded")
                         i += 1
                         continue
                     else:
-                        print("no rsid column in {}, rsid column will be inserted and values will be replaced by "
+                        print("no rsid column in {}, rsid column will be inserted and rsid values will be replaced by "
                               "CHROM_POS ".format(prs_file_path))
-                        new_header = change_header_without_rsid(line)
-                        output.write(new_header)
-                        print("new header recorded")
+                        header = insert_rsid_to_header(line)
+                        output.write(header)
+                        print("edited header recorded")
                         rsid_idx = 0
-                        without_rsid = True
+                        inserted_rsid = True
                         i += 1
                         continue
                 if not line.startswith('#') and i >= 0:
                     s = line.split(dialect.delimiter)
-                    if (not s[rsid_idx] or without_rsid) and replace_flag == 'y':
+                    if (not s[rsid_idx] or inserted_rsid) and replace_flag == 'y':
                         i += 1
-                        print("new_header", repr(new_header))
-                        chrom, pos = new_header.split('\t').index('CHROM') - 1, new_header.split('\t').index('POS') - 1
+                        print("header", repr(header))
+                        if inserted_rsid:
+                            chrom, pos = header.split('\t').index('chr_name') - 1, header.split('\t').index(
+                                'chr_position') - 1
+                        else:
+                            chrom, pos = header.split('\t').index('chr_name'), header.split('\t').index('chr_position')
                         print("chrom, pos", chrom, pos)
                         print("s", s)
-                        if s[chrom] and s[pos]:
+                        if (s[chrom] and s[pos]) and not inserted_rsid:
                             s[rsid_idx] = '{}_{}'.format(s[chrom], s[pos])
+                        elif (s[chrom] and s[pos]) and inserted_rsid:
+                            s.insert(0, '{}_{}'.format(s[chrom], s[pos]))
                         else:
-                            print("error file: no CHROM and POS")
+                            print("error file: no chr_position and chr_name")
                             return edited_file_path, i
                         edited_line = dialect.delimiter.join(s)
                         output.write(edited_line)
+                        print("chrom_pos recorded")
                     else:
                         output.write(line)
+                        print("without")
                     if s[rsid_idx] in rs_id_list:
                         print("warning: {} is duplicate".format(s[rsid_idx]))
                     rs_id_list.append(s[rsid_idx])
@@ -134,10 +128,10 @@ if __name__ == '__main__':
     parser.add_argument('--i', help='Absolute path to the folder with PRS scoring file', nargs='?', required=True)
     parser.add_argument('--o', help='Absolute path to the folder with output files, if doesn\'t exist, '
                                     'will be auto created', nargs='?', required=True)
-    parser.add_argument('--r', help='Replace unknown SNP with SHROM_POS', nargs='?', default='n')
+    parser.add_argument('--r', help='Replace unknown SNP with CHROM_POS', nargs='?', default='n')
     args = parser.parse_args()
     print("Options in effect:\n--i absolute path of folder with prs scoring file {}\n"
-          "--o absolute path to the folder with output files {}".format(args.i, args.o))
+          "--o absolute path to the folder with output files {} --r {}".format(args.i, args.o, args.r))
     try:
         main(args.i, args.o, args.r)
     except BaseException as e:

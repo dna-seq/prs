@@ -2,9 +2,8 @@ import numpy as np
 import pandas as pd
 import gzip
 
-vcf_file_path = '/home/alina_grf/Documents/longevity/PRS/antonkulaga_38_all_rsid_chrompos.vcf.gz'
-pgs_file_path = '/home/alina_grf/Documents/longevity/PRS/pgs/obesity/PGS001298_header.txt'
-# nopred_path = '/home/alina_grf/Documents/longevity/PRS/pgs/obesity/launches/launch4_chrom_pos/plink.nopred'
+vcf_file_path = 'path'
+pgs_file_path = 'path'
 nopred_path = ''
 ploidy = 2
 
@@ -70,17 +69,15 @@ def calc_prs(vcf_path, pgs_path, header_line_names):
             else:
                 continue
             for idx in idx_match_pgs:
-                weight = df_pgs.iloc[idx]['WEIGHT_eff']
                 rsid = df_pgs.iloc[idx]['rsID']
-                effect_allele = df_pgs.iloc[idx]['EA']
-                print('rsID:', rsid, "EA:", effect_allele, "OA:", df_pgs.iloc[idx]['OA'])
+                effect_allele = df_pgs.iloc[idx]['effect_allele']
+                print('rsID:', rsid, "EA:", effect_allele, "OA:", df_pgs.iloc[idx]['other_allele'])
                 if zygos_dict[rsid][1] != effect_allele:
                     print("warning", zygos_dict[rsid][1], effect_allele)
                     continue
-                if zygos_dict[rsid][0] == 'hom':  # and zygos_dict[rsid][1] == effect_allele:
+                weight = df_pgs.iloc[idx]['effect_weight']
+                if zygos_dict[rsid][0] == 'hom':
                     weight = 2 * weight
-                # elif zygos_dict[rsid][0] == 'hetero' and zygos_dict[rsid][1] == effect_allele:
-                #     print("hetero {}".format(rsid))
                 elif zygos_dict[rsid][0] == 'missing':
                     # weight = 1.5 * weight
                     weight = 0
@@ -97,5 +94,4 @@ def calc_prs(vcf_path, pgs_path, header_line_names):
 names = get_vcf_header_line_names(vcf_file_path)
 print("names", names)
 calc_prs(vcf_file_path, pgs_file_path, names)
-# for row in df.itertuples(index=True, name='Pandas'):
-#     print(getattr(row, "Name"), getattr(row, "Percentage"))
+
