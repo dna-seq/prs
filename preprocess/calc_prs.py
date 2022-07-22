@@ -1,9 +1,9 @@
-import numpy as np
 import pandas as pd
 import gzip
 
-vcf_file_path = 'path'
-pgs_file_path = 'path'
+vcf_file_path = ''
+pgs_file_path = ''
+# nopred_path = ''
 nopred_path = ''
 ploidy = 2
 
@@ -73,20 +73,22 @@ def calc_prs(vcf_path, pgs_path, header_line_names):
                 effect_allele = df_pgs.iloc[idx]['effect_allele']
                 print('rsID:', rsid, "EA:", effect_allele, "OA:", df_pgs.iloc[idx]['other_allele'])
                 if zygos_dict[rsid][1] != effect_allele:
-                    print("warning", zygos_dict[rsid][1], effect_allele)
                     continue
                 weight = df_pgs.iloc[idx]['effect_weight']
+                if weight is None or weight == "":
+                    print('warning weight', weight)
+                    continue
                 if zygos_dict[rsid][0] == 'hom':
                     weight = 2 * weight
                 elif zygos_dict[rsid][0] == 'missing':
-                    # weight = 1.5 * weight
+                    # weight = 2 * frequency* weight
                     weight = 0
                 if weight:
                     prs_score_sum += weight
                     non_missing_snp_count += 1
     if non_missing_snp_count:
         prs_score_avg = prs_score_sum / (ploidy*non_missing_snp_count)
-        print("prs_score_avg", prs_score_avg, 'prs_score_sum', prs_score_sum, "non_missing_snp_count", non_missing_snp_count)
+        print('sum:', prs_score_sum, ", count:", non_missing_snp_count, ', average:', prs_score_avg)
     else:
         print("no match")
 
