@@ -37,7 +37,7 @@ dependencies:
 - libnsl=2.0.0=h7f98852_0
 - numpy=1.21.6=py37h976b520_0
 - font-ttf-ubuntu=0.83=hab24e00_0
-- plink=1.90b6.21=hec16e2b_2
+- plink convert=1.90b6.21=hec16e2b_2
 - cairo=1.16.0=ha61ee94_1011
 - libedit=3.1.20191231=he28a2e2_2
 - icu=70.1=h27087fc_0
