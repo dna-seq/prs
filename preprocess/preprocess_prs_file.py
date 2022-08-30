@@ -125,12 +125,12 @@ def main(prs_dir, out_dir, replace_flag):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--i', help='Absolute path to the folder with PRS scoring file', nargs='?', required=True)
-    parser.add_argument('--o', help='Absolute path to the folder with output files, if doesn\'t exist, '
-                                    'will be auto created', nargs='?', required=True)
-    parser.add_argument('--r', help='Replace unknown SNP with CHROM_POS', nargs='?', default='n')
+    parser.add_argument('--i', help='Absolute path to the folder with PRS scoring file(s)', nargs='?', required=True)
+    parser.add_argument('--o', help='Absolute path to the folder with output files, if folder does n\'t exist, '
+                                    'it will be auto created', nargs='?', required=True)
+    parser.add_argument('--r', help='Replace unknown SNP with CHROM_POS: \'y\' or \'n\'', nargs='?', default='n')
     args = parser.parse_args()
-    print("Options in effect:\n--i absolute path of folder with prs scoring file {}\n"
+    print("Options in effect:\n--i absolute path of folder with prs scoring file(s) {}\n"
           "--o absolute path to the folder with output files {} --r {}".format(args.i, args.o, args.r))
     try:
         main(args.i, args.o, args.r)
