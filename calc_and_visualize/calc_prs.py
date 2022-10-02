@@ -2,6 +2,15 @@ import pandas as pd
 import gzip
 import os
 
+"""
+Scipt for calculation polygenic risk scores
+1. file with prs weights must have columns named like in pgscatalog-format files:
+[rsID	effect_allele	effect_weight] if there is rsID
+[chr_name	chr_position	effect_allele	effect_weight] if there is no rsID
+2. vcf files must consist of required columns
+CHROM  POS     ID      REF     ALT     sample_name
+
+"""
 pwd = os.getcwd()
 vcf_file_path = '/path_to/example.vcf'
 sample_name = 'default'  # last column: column after 'FORMAT' in vcf
@@ -30,17 +39,22 @@ def get_vcf_header(vcf_path):
     return vcf_names
 
 
-def get_zygosity(df, idx_vcf):
+def get_zygosity(df, idx_vcf, rsid_flag=True):
+    global no_pred_snps
     zygos_dict = dict()
     for idx in idx_vcf:
         zygo = (df.iloc[idx]['{}\n'.format(sample_name)].split(',')[0]).split(':')[0]
         ref = df.iloc[idx]['REF']
         alt = df.iloc[idx]['ALT']
-        rsid = df.iloc[idx]['ID']
-        print("zygo", zygo, "ref", ref, "alt", alt, 'ID', df.iloc[idx]['ID'])
-        if no_pred_snps and rsid in no_pred_snps:
-            zygos_dict[rsid] = ('missing', '')
-            print("rsid {} from nopred list, insert missing genotype to skip in analysis".format(rsid))
+        if rsid_flag:
+            snp_id = df.iloc[idx]['ID']
+        else:
+            snp_id = '{}_{}'.format(df.iloc[idx]['#CHROM'], df.iloc[idx]['POS'])
+        # print("zygo", zygo, "ref", ref, "alt", alt, 'rsid', df.iloc[idx]['ID'], 'snpid', snp_id, 'rsid_flag',
+        # rsid_flag)
+        if no_pred_snps and snp_id in no_pred_snps:
+            zygos_dict[snp_id] = ('missing', '')
+            print("rsid {} from nopred list, insert missing genotype to skip in analysis".format(snp_id))
             continue
         """
         - 0/0 : the sample is homozygous reference
@@ -48,13 +62,13 @@ def get_zygosity(df, idx_vcf):
         - 1/1 : the sample is homozygous alternate
         """
         if zygo == '0/0' or zygo == '0|0':
-            zygos_dict[rsid] = ('homo', [ref])
-        if zygo == '1/1' or zygo == '1|1':
-            zygos_dict[rsid] = ('homo', [alt])
-        if zygo == './.':
-            zygos_dict[rsid] = ('missing', '')
+            zygos_dict[snp_id] = ('homo', [ref])
+        elif zygo == '1/1' or zygo == '1|1':
+            zygos_dict[snp_id] = ('homo', [alt])
+        elif zygo == './.':
+            zygos_dict[snp_id] = ('missing', '')
         else:  # zygo == '0/1' or zygo == '0|1' or zygo == '1/2':
-            zygos_dict[rsid] = ('hetero', [ref, alt])
+            zygos_dict[snp_id] = ('hetero', [ref, alt])
     return zygos_dict
 
 
@@ -73,16 +87,16 @@ def read_vcf(vcf_path, header_line_names):
                 yield df_chunk
 
 
-def calc_weight(zygos_dict, rsid, df_pgs, idx, score_sum, non_miss_snp_count):
+def calc_weight(zygos_dict, snp_id, df_pgs, idx, score_sum, non_miss_snp_count):
     weight = df_pgs.iloc[idx]['effect_weight']
     if weight is None or weight == "":
-        print('None weight for ', rsid)
+        print('None weight for ', snp_id)
         return
-    if zygos_dict[rsid][0] == 'homo':
+    elif zygos_dict[snp_id][0] == 'homo':
         weight = 2 * weight
-    elif zygos_dict[rsid][0] == 'missing':
+    elif zygos_dict[snp_id][0] == 'missing':
         # weight = 2 * frequency* weight
-        print("missing genotype for", rsid)
+        print("missing genotype for", snp_id)
         weight = 0
     if weight:
         score_sum += weight
@@ -90,43 +104,66 @@ def calc_weight(zygos_dict, rsid, df_pgs, idx, score_sum, non_miss_snp_count):
         return score_sum, non_miss_snp_count
 
 
-def calc_prs(vcf_path, pgs_path, header_line_names, pre_snp_list):
+def calc_prs(vcf_path, pgs_path, header_line_names):
+    global pre_snps
     score_sum = 0
     non_miss_snp_count = 0
     df_pgs = pd.read_csv(pgs_path, delimiter="\t")
     chunks = 0
+    rsid_flag = True
     for df_chunk in read_vcf(vcf_path, header_line_names):
         chunks += 1
-        isin_pgs = df_pgs['rsID'].isin(df_chunk['ID'])
-        isin_vcf = df_chunk['ID'].isin(df_pgs['rsID'])
-        idx_match_pgs = df_pgs.index[isin_pgs == True].tolist()
-        if idx_match_pgs:
-            if chunks > 1:
-                idx_match_vcf = (df_chunk.index[isin_vcf == True] - 1000*chunks).tolist()
+        try:
+            isin_pgs = df_pgs['rsID'].isin(df_chunk['ID'])
+            isin_vcf = df_chunk['ID'].isin(df_pgs['rsID'])
+            idx_match_pgs = df_pgs.index[isin_pgs == True].tolist()
+            if idx_match_pgs:
+                if chunks > 1:
+                    idx_match_vcf = (df_chunk.index[isin_vcf == True] - 1000 * chunks).tolist()
+                else:
+                    idx_match_vcf = df_chunk.index[isin_vcf == True].tolist()
+                zygos_dict = get_zygosity(df_chunk, idx_match_vcf)
             else:
-                idx_match_vcf = df_chunk.index[isin_vcf == True].tolist()
-            zygos_dict = get_zygosity(df_chunk, idx_match_vcf)
-        else:
-            continue
+                continue
+        except KeyError:
+            chrom_pos_pgs = ['{}_{}'.format(pair[0], pair[1]) for pair in zip(df_pgs['chr_name'],
+                                                                              df_pgs['chr_position'])]
+            chrom_pos_vcf = ['{}_{}'.format(pair[0], pair[1]) for pair in zip(df_chunk['#CHROM'], df_chunk['POS'])]
+            matched = set(chrom_pos_pgs).intersection(chrom_pos_vcf)
+            if matched:
+                idx_match_pgs = list()
+                idx_match_vcf = list()
+                for m in matched:
+                    idx_match_pgs.append(chrom_pos_pgs.index(m))
+                    idx_match_vcf.append(chrom_pos_vcf.index(m))
+                # if chunks > 1:
+                #     idx_match_vcf = [i - 1000 * chunks for i in idx_match_vcf]
+                rsid_flag = False
+                zygos_dict = get_zygosity(df_chunk, idx_match_vcf, rsid_flag)
+            else:
+                continue
         for idx in idx_match_pgs:
-            rsid = df_pgs.iloc[idx]['rsID']
-            vcf_alleles = zygos_dict[rsid][1]
+            if rsid_flag:
+                snp_id = df_pgs.iloc[idx]['rsID']
+            else:
+                snp_id = chrom_pos_pgs[idx]
+            vcf_alleles = zygos_dict[snp_id][1]
             effect_allele = df_pgs.iloc[idx]['effect_allele']
-            if pre_snp_list:
-                if rsid in pre_snp_list:
+            if pre_snps:
+                if snp_id in pre_snps:
                     try:
-                        score_sum, non_miss_snp_count = calc_weight(zygos_dict, rsid, df_pgs, idx, score_sum,
+                        score_sum, non_miss_snp_count = calc_weight(zygos_dict, snp_id, df_pgs, idx, score_sum,
                                                                     non_miss_snp_count)
-                        processed_snps.add(rsid)
+                        processed_snps.add(snp_id)
                     except TypeError:
                         pass
             else:
                 for allele in vcf_alleles:
                     if effect_allele in allele:
                         try:
-                            score_sum, non_miss_snp_count = calc_weight(zygos_dict, rsid, df_pgs, idx, score_sum,
+                            score_sum, non_miss_snp_count = calc_weight(zygos_dict, snp_id, df_pgs, idx, score_sum,
                                                                         non_miss_snp_count)
-                            processed_snps.add(rsid)
+                            processed_snps.add(snp_id)
                             break
                         except TypeError:
                             pass
@@ -135,7 +172,7 @@ def calc_prs(vcf_path, pgs_path, header_line_names, pre_snp_list):
         print('sum:', score_sum, ", count:", non_miss_snp_count, ', average:', score_avg)
         return non_miss_snp_count, score_sum, score_avg
     else:
-        print("No match: None weights")
+        print("No matched: None weights")
 
 
 def write_result(non_miss_snp_count, score_sum, score_avg):
@@ -164,7 +201,7 @@ if __name__ == "__main__":
                 no_pred_snps.add(snp.replace('\n', ''))
         print('no_pred_snps of length: {}'.format(len(no_pred_snps)))
     try:
-        non_missing_snp_count, prs_score_sum, prs_score_avg = calc_prs(vcf_file_path, pgs_file_path, vcf_header, pre_snps)
+        non_missing_snp_count, prs_score_sum, prs_score_avg = calc_prs(vcf_file_path, pgs_file_path, vcf_header)
         write_result(non_missing_snp_count, prs_score_sum, prs_score_avg)
     except TypeError:
         print('No intersection of rsids in vcf and rsids in prs scoring file, or missing weights')
