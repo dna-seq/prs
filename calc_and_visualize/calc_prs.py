@@ -12,15 +12,23 @@ CHROM  POS     ID      REF     ALT     sample_name
 
 """
 pwd = os.getcwd()
-vcf_file_path = '/path_to/example.vcf'
+# vcf_file_path = '/path_to/example.vcf'
+# sample_name = 'default'  # last column: column after 'FORMAT' in vcf
+# pgs_file_path = 'path_to/prs_scores.txt'
+# pre_snp_list_path = '/path_to/snp_list.txt'  # to get in analysis only snps from this list, leave blank '' if no list
+# nopred_path = '/path_to/no_pred.txt'  # to exclude from analysis snps from this list, leave blank '' if no list
+vcf_file_path = '/home/alina_grf/Documents/longevity/PRS/antonkulaga_38_all_rsid_chrompos.vcf'
 sample_name = 'default'  # last column: column after 'FORMAT' in vcf
-pgs_file_path = 'path_to/prs_scores.txt'
-pre_snp_list_path = '/path_to/snp_list.txt'  # to get in analysis only snps from this list, leave blank '' if no list
-nopred_path = '/path_to/no_pred.txt'  # to exclude from analysis snps from this list, leave blank '' if no list
+pgs_file_path = '/home/alina_grf/Documents/longevity/PRS/pgs/for_calc/PRS5_header.txt'
+# pgs_file_path = '/home/alina_grf/Documents/longevity/PRS/pgs/Coronary artery disease ' \
+#                 'PGS000013/PGS000013_GRCh38_header.txt'
+pre_snp_list_path = ''  # to get in analysis only snps from this list, leave blank '' if no list
+nopred_path = ''
 ploidy = 2
 pre_snps = set()
 no_pred_snps = set()
 processed_snps = set()
+matched_snps = set()
 
 
 def get_vcf_header(vcf_path):
@@ -67,8 +75,9 @@ def get_zygosity(df, idx_vcf, rsid_flag=True):
             zygos_dict[snp_id] = ('homo', [alt])
         elif zygo == './.':
             zygos_dict[snp_id] = ('missing', '')
-        else:  # zygo == '0/1' or zygo == '0|1' or zygo == '1/2':
+        else:
             zygos_dict[snp_id] = ('hetero', [ref, alt])
+        # zygo == '0/1' or zygo == '0|1' or zygo == '1/2':
     return zygos_dict
 
 
@@ -147,6 +156,7 @@ def calc_prs(vcf_path, pgs_path, header_line_names):
                 snp_id = df_pgs.iloc[idx]['rsID']
             else:
                 snp_id = chrom_pos_pgs[idx]
+            matched_snps.add(snp_id)
             vcf_alleles = zygos_dict[snp_id][1]
             effect_allele = df_pgs.iloc[idx]['effect_allele']
             if pre_snps:
@@ -182,8 +192,12 @@ def write_result(non_miss_snp_count, score_sum, score_avg):
     print("score result recorded to {}".format(score_res_path))
     df.to_csv(score_res_path, '\t', index=False)
     processed_path = os.path.join(pwd, '{}.{}'.format(prs_file_name, 'vars'))
-    df = pd.DataFrame(list(processed_snps))
-    df.to_csv(processed_path, '\t', index=False, header=False)
+
+    d = {'matched': list(matched_snps), 'processed': list(processed_snps)}
+    df = pd.DataFrame(dict([(k, pd.Series(v)) for k, v in d.items()]))
+
+    # df = pd.DataFrame(list(processed_snps))
+    df.to_csv(processed_path, '\t', index=False) #, header=False)
     print("scoring snp list recorded to {}".format(processed_path))
 
 
